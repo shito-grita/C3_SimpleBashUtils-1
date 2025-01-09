@@ -1,195 +1,284 @@
-#include <ctype.h>
-#include <regex.h>
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <getopt.h>
+#include <dirent.h>
+#include <locale.h>
 #include <string.h>
+#include <sys/stat.h>
 
-#define MAX_LINE_LENGTH 1024
-#define MAX_PATTERN_LENGTH 256
-#define INITIAL_PATTERN_CAPACITY 10
+#include "./s21_grep.h"
 
-typedef struct {
-  char **pattern;
-  int pattern_count;
-  int show_filename;      // Флаг -h:
-  int only_matches;       // Флаг -o:
-  int invert_match;       // Флаг -v:
-  int count_only;         // Флаг -c:
-  int list_files;         // Флаг -l:
-  int show_line_numbers;  // Флаг -n:
-  int ignore_case;        // Флаг -i:
-  int silent;             // Флаг -s:
-} GrepOptions;
 
-void print_only_matches(const char *line, const GrepOptions *options) {
-  for (int i = 0; i < options->pattern_count; i++) {
-    regex_t regex;
-    regcomp(&regex, options->pattern[i],
-            REG_EXTENDED | (options->ignore_case ? REG_ICASE : 0));
+#include <regex.h>
+#ifndef REG_STARTEND
+#define REG_STARTEND 00004
+#endif
 
-    const char *match_start = line;
-    while ((match_start = strstr(match_start, options->pattern[i])) != NULL) {
-      printf("%s\n", options->pattern[i]);
-      match_start += strlen(options->pattern[i]);
+void s21_grep_destroy_settings_files(s21_grep_settings *settings) {
+    for (int i = 0; i < settings->num_files; i++) {
+        free(settings->files[i]);
     }
-
-    regfree(&regex);
-  }
+    if (settings->num_files > 0) {
+        free(settings->files);
+        settings->num_files = 0;
+    }
 }
-void count_matches(int *total_matches, const char *line,
-                   const GrepOptions *options) {
-  for (int i = 0; i < options->pattern_count; i++) {
-    regex_t regex;
-    regcomp(&regex, options->pattern[i],
-            REG_EXTENDED | (options->ignore_case ? REG_ICASE : 0));
-
-    if (!regexec(&regex, line, 0, NULL, 0)) {
-      (*total_matches)++;
-    }
-    regfree(&regex);
-  }
+void s21_grep_print_error(char *str) {
+    s21_print_error(PNAME, str);
 }
 
-void grep(const GrepOptions *options, const char *filename) {
-  FILE *file = fopen(filename, "r");
-  if (file == NULL) {
-    return;
-  }
-
-  char line[MAX_LINE_LENGTH];
-  int line_number = 0;
-  int total_matches = 0;
-
-  while (fgets(line, sizeof(line), file)) {
-    line_number++;
-    int match_found = 0;
-
-    for (int i = 0; i < options->pattern_count; i++) {
-      regex_t regex;
-      regcomp(&regex, options->pattern[i],
-              REG_EXTENDED | (options->ignore_case ? REG_ICASE : 0));
-      if (!regexec(&regex, line, 0, NULL, 0)) {
-        match_found = 1;
-        break;
-      }
-      regfree(&regex);
+void s21_grep_destroy_settings_patterns(s21_grep_settings *settings) {
+    for (int i = 0; i < settings->num_patterns; i++) {
+        free(settings->patterns[i]);
     }
-
-    if ((match_found && !options->invert_match) ||
-        (!match_found && options->invert_match)) {
-      if (options->count_only) {
-        count_matches(&total_matches, line, options);
-      } else {
-        if (options->show_filename) {
-          printf("%s:", filename);
-        }
-        if (options->show_line_numbers) {
-          printf("%d: ", line_number);
-        }
-        if (options->only_matches) {
-          print_only_matches(line, options);
-        } else {
-          printf("%s", line);
-        }
-      }
+    if (settings->num_patterns > 0) {
+        free(settings->patterns);
+        settings->num_patterns = 0;
     }
-  }
-
-  if (options->count_only) {
-    printf("%d\n", total_matches);
-  }
-
-  fclose(file);
 }
 
-void parse_arguments(int argc, char *argv[], GrepOptions *options) {
-  options->show_filename = 1;  // По умолчанию показывать имя файла
-  options->only_matches = 0;  // По умолчанию не выводить только совпадения
-  options->invert_match = 0;  // По умолчанию не инвертировать поиск
-  options->count_only =
-      0;  // По умолчанию не выводить только количество совпадений
-  options->list_files = 0;  // По умолчанию не выводить имена файлов
-  options->show_line_numbers = 0;  // По умолчанию не показывать номера строк
-  options->pattern_count = 0;
-  options->ignore_case = 0;
-  options->silent = 0;
+void s21_grep_destroy_settings(s21_grep_settings *settings) {
+    s21_grep_destroy_settings_files(settings);
+    s21_grep_destroy_settings_patterns(settings);
+}
 
-  options->pattern = malloc(INITIAL_PATTERN_CAPACITY * sizeof(char *));
-  if (!options->pattern) {
-    exit(EXIT_FAILURE);
-  }
-  int pattern_capacity = INITIAL_PATTERN_CAPACITY;
-  for (int i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "-h") == 0) {
-      options->show_filename = 0;
-    } else if (strcmp(argv[i], "-o") == 0) {
-      options->only_matches = 1;
-    } else if (strcmp(argv[i], "-I") == 0) {
-      continue;
-    } else if (strcmp(argv[i], "-v") == 0) {
-      options->invert_match = 1;
-    } else if (strcmp(argv[i], "-c") == 0) {
-      options->count_only = 1;
-    } else if (strcmp(argv[i], "-l") == 0) {
-      options->list_files = 1;
-      options->show_filename = 0;
-    } else if (strcmp(argv[i], "-n") == 0) {
-      options->show_line_numbers = 1;
-    } else if (strcmp(argv[i], "-i") == 0) {
-      options->ignore_case = 1;
-    } else if (strcmp(argv[i], "-s") == 0) {
-      options->silent = 1;
-    } else if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
-      i++;
-      if (options->pattern_count >= pattern_capacity) {
-        pattern_capacity *= 2;
-        options->pattern =
-            realloc(options->pattern, pattern_capacity * sizeof(char *));
-        if (!options->pattern) {
-          exit(EXIT_FAILURE);
+void s21_grep_print_instructions_and_exit() {
+    fprintf(stderr,
+     "usage: grep [-ivclnhso] [-e pattern] [-f file] [--color=when]\n\t[pattern] [file ...]\n");
+    exit(0);
+}
+
+void s21_grep_print_error(char *str) {
+    s21_print_error(PNAME, str);
+}
+
+s21_grep_settings s21_grep_get_settings(int argc, char *argv[]) {
+    s21_grep_settings settings = {NULL, 0, NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    const char* short_options = "e:ivclnhsof:";
+    const struct option long_options[] = {
+        { "regexp", required_argument, NULL, 'e' },
+        { "ignore-case", no_argument, NULL, 'i' },
+        { "invert-match", no_argument, NULL, 'v' },
+        { "count", no_argument, NULL, 'c' },
+        { "files-with-matches", no_argument, NULL, 'l' },
+        { "line-number", no_argument, NULL, 'n' },
+        { "no-filename", no_argument, NULL, 'h' },
+        { "no-messages", no_argument, NULL, 's' },
+        { "file", required_argument, NULL, 'f' },
+        { "only-matching", no_argument, NULL, 'o' },
+        { NULL, 0, NULL, 0 }
+    };
+    int res;
+    int exist_flag_f = 0;
+
+    settings.regexp_cflags |= REG_NEWLINE;
+    #if defined(__APPLE__)
+    settings.regexp_cflags |= REG_ENHANCED;
+    #endif
+
+    while ((res = getopt_long(argc, argv, short_options, long_options, NULL)) != -1) {
+        switch (res) {
+            case 'e':
+                s21_push_to_string_array(&settings.patterns, optarg, &settings.num_patterns);
+                break;
+            case 'i':
+                settings.ignore_case = 1;
+                break;
+            case 'v':
+                settings.invert_match = 1;
+                break;
+            case 'c':
+                settings.show_count_lines_only = 1;
+                break;
+            case 'l':
+                settings.show_files_name_only = 1;
+                break;
+            case 'n':
+                settings.show_lines_num = 1;
+                break;
+            case 'h':
+                settings.show_no_files_name = 1;
+                break;
+            case 's':
+                settings.silent_mode = 1;
+                break;
+            case 'f':
+            exist_flag_f = 1;
+                s21_grep_parse_ffiles(&settings, optarg);
+                break;
+            case 'o':
+                settings.show_matching_only = 1;
+                break;
+            case '?':
+            default:
+                s21_grep_print_instructions_and_exit();  // unknown option or option requires an argument
+                break;
         }
-      }
-      options->pattern[options->pattern_count] =
-          malloc((strlen(argv[i]) + 1) * sizeof(char));
-      if (!options->pattern[options->pattern_count]) {
-        exit(EXIT_FAILURE);
-      }
-      strcpy(options->pattern[options->pattern_count++], argv[i]);
+    }
+
+    if (optind < argc) {
+        while (optind < argc) {
+            s21_push_to_string_array(&settings.files, argv[optind], &settings.num_files);
+            optind++;
+        }
     } else {
-      if (options->pattern_count >= pattern_capacity) {
-        pattern_capacity *= 2;
-        options->pattern =
-            realloc(options->pattern, pattern_capacity * sizeof(char *));
-        if (!options->pattern) {
-          exit(EXIT_FAILURE);
-        }
-      }
-      options->pattern[options->pattern_count] =
-          malloc((strlen(argv[i]) + 1) * sizeof(char));
-      if (!options->pattern[options->pattern_count]) {
-        exit(EXIT_FAILURE);
-      }
-      strcpy(options->pattern[options->pattern_count++], argv[i]);
+        s21_grep_print_instructions_and_exit();
     }
-  }
+
+    if (settings.num_patterns == 0 && exist_flag_f == 0) {
+        char *pull_str = s21_pull_from_string_array(&settings.files, &settings.num_files);
+        if (pull_str != NULL) {
+            s21_push_to_string_array(&settings.patterns, pull_str, &settings.num_patterns);
+        }
+        free(pull_str);
+    }
+
+    if (settings.ignore_case == 1) {
+        settings.regexp_cflags |= REG_ICASE;
+    }
+
+    for (int i = 0; i < settings.num_patterns; i++) {
+        if (strlen(settings.patterns[i]) == 0) {
+            settings.has_empty_pattern = 1;
+            break;
+        }
+    }
+
+    return settings;
 }
 
-int main(int argc, char *argv[]) {
-  GrepOptions options;
-  parse_arguments(argc, argv, &options);
+void s21_grep_print_settings(s21_grep_settings settings) {
+    printf("\n");
+    char format[1024];
+    strcpy(format, "ignore_case:[%d]\n");
+    strcat(format, "invert_match:[%d]\n");
+    strcat(format, "show_count_lines_only:[%d]\n");
+    strcat(format, "show_files_name_only:[%d]\n");
+    strcat(format, "show_lines_num:[%d]\n");
+    strcat(format, "show_no_files_name:[%d]\n");
+    strcat(format, "silent_mode:[%d]\n");
+    strcat(format, "show_matching_only:[%d]\n");
+    printf(
+     format,
+     settings.ignore_case, settings.invert_match, settings.show_count_lines_only,
+     settings.show_files_name_only, settings.show_lines_num, settings.show_no_files_name,
+     settings.silent_mode, settings.show_matching_only);
+    printf("\n");
 
-  if (options.pattern_count == 0 || argc <= options.pattern_count) {
-    fprintf(stderr, "Использование: %s [опции] <шаблон> [<шаблон>...] <файл>\n",
-            argv[0]);
-    return EXIT_FAILURE;
-  }
-  const char *filename = argv[argc - 1];
-  grep(&options, filename);
+    printf("Files(%d):\n", settings.num_files);
+    for (int i = 0; i < settings.num_files; i++) {
+        printf("  [%s]\n", settings.files[i]);
+    }
+    printf("\n");
 
-  for (int i = 0; i < options.pattern_count; i++) {
-    free(options.pattern[i]);
-  }
-  free(options.pattern);
-  return EXIT_SUCCESS;
+    printf("Patterns(%d):\n", settings.num_patterns);
+    for (int i = 0; i < settings.num_patterns; i++) {
+        printf("  [%s]\n", settings.patterns[i]);
+    }
+    printf("\n");
 }
 
+void s21_grep_parse_ffiles(s21_grep_settings *settings, char *filename) {
+    DIR *dir;
+    dir = opendir(filename);
+    if (dir) {
+        closedir(dir);
+    } else {
+        errno = 0;
+        FILE *fp = fopen(filename, "r");
+        if (!fp) {
+            char *error = strerror(errno);
+            char *error_full = s21_calloc(sizeof(char) * (strlen(filename) + 255));
+            sprintf(error_full, "%s: %s", filename, error);
+            s21_grep_print_error(error_full);
+            free(error_full);
+            exit(0);
+        } else {
+            char *line = NULL;
+            size_t len = 0;
+            while ((getline(&line, &len, fp)) != -1) {
+                size_t line_len = strlen(line);
+                if (line[line_len - 1] == '\n') {
+                    line[line_len - 1] = '\0';
+                }
+
+                s21_push_to_string_array(&settings->patterns, line, &settings->num_patterns);
+            }
+            free(line);
+            fclose(fp);
+        }
+    }
+}
+
+int s21_grep_file(char *filename, s21_grep_settings settings) {
+    int num_matches = -1;
+
+    DIR *dir = opendir(filename);
+    if (dir) {
+        char *error_dir_open = "Is a directory";
+        char error_dir_open_full[512];
+        sprintf(error_dir_open_full, "%s: %s", filename, error_dir_open);
+        #if defined(__APPLE__)
+        s21_grep_print_error(error_dir_open_full);
+        #endif
+        closedir(dir);
+    } else {
+        errno = 0;
+        FILE *fp = fopen(filename, "r");
+        if (!fp) {
+            if (settings.silent_mode == 0) {
+                char *error = strerror(errno);
+                char *error_full = s21_calloc(sizeof(char) * (strlen(filename) + 255));
+                sprintf(error_full, "%s: %s", filename, error);
+                s21_grep_print_error(error_full);
+                free(error_full);
+            }
+        } else {
+            #if defined(__APPLE__)
+            struct stat fpstat;
+            int fd;
+            fd = fileno(fp);
+            fstat(fd, &fpstat);
+            if (fpstat.st_size == 0 && settings.has_empty_pattern == 1) {
+                fclose(fp);
+                return -2;  //  error with empty file at Mac
+            }
+            #endif
+
+            char *line = NULL;
+            size_t len = 0;
+            unsigned long string_num = 0;
+            num_matches = 0;
+            while ((getline(&line, &len, fp)) != -1) {
+                s21_string str;
+                if (strlen(line) > 0) {
+                    if (line[strlen(line) - 1] == '\n') {
+                        line[strlen(line) - 1] = '\0';
+                    }
+                }
+                string_num++;
+                str.data = line;
+                str.file_name = filename;
+                str.line_num = string_num;
+
+                if (res > 0) {
+                    num_matches++;
+                    if (settings.show_files_name_only == 1) {
+                        break;
+                    }
+                }
+            }
+            free(line);
+            fclose(fp);
+        }
+    }
+    return num_matches;
+}
+
+void print_nchars(char *str, regoff_t n) {
+    for (long long int i = 0; i < n; i++) {
+        putchar(str[i]);
+    }
+}

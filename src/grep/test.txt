@@ -1,0 +1,4 @@
+Hello world!
+Pattern found here.
+Another line without pattern.
+Pattern is here again.
