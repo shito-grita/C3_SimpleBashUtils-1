@@ -26,13 +26,6 @@ void s21_cat_print_fopen_error(char *filename) {
     s21_cat_print_error(error_full);
     free(error_full);
 }
-void s21_cat_print_fopen_error(char *filename) {
-    char *error = strerror(errno);
-    char *error_full = calloc(strlen(filename) + 255, sizeof(char));
-    sprintf(error_full, "%s: %s", filename, error);
-    s21_cat_print_error(error_full);
-    free(error_full);
-}
 
 void s21_cat_print_usage_error(char *str) {
     char *error_arg_long_full = calloc(strlen(str) + 255, sizeof(char));
@@ -136,7 +129,6 @@ void s21_reset_state(s21_cat_state *state) {
 void s21_cat_file(char *filename, s21_cat_settings settings) {
     s21_cat_state state;
     s21_reset_state(&state);
-
     DIR *dir;
     dir = opendir(filename);
     if (dir) {
@@ -162,9 +154,9 @@ void s21_cat_file(char *filename, s21_cat_settings settings) {
                 }
 
                 if (settings.num_not_empty_lines == 1) {
-                    s21_cat_proccess_flag_b(&state, settings);
+                    s21_cat_proccess_flag_b(&state);
                 } else if (settings.num_all_lines == 1) {
-                    s21_cat_proccess_flag_n(&state, settings);
+                    s21_cat_proccess_flag_n(&state);
                 }
 
                 if (state.is_print_line_num == 1) {
@@ -205,7 +197,7 @@ void s21_print_special_char(int c, s21_cat_settings settings) {
     }
 }
 
-void s21_cat_proccess_flag_b(s21_cat_state *state, s21_cat_settings settings) {
+void s21_cat_proccess_flag_b(s21_cat_state *state) {
     if (state->is_new_line == 1) {
         if (state->ch != '\n') {
             state->is_print_line_num = 1;
@@ -219,7 +211,7 @@ void s21_cat_proccess_flag_b(s21_cat_state *state, s21_cat_settings settings) {
     }
 }
 
-void s21_cat_proccess_flag_n(s21_cat_state *state, s21_cat_settings settings) {
+void s21_cat_proccess_flag_n(s21_cat_state *state) {
     if (state->is_new_line == 1) {
         state->is_print_line_num = 1;
         state->is_new_line = 0;
