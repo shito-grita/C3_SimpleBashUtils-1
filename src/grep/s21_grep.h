@@ -1,41 +1,33 @@
-#ifndef S21_GREP_H
-#define S21_GREP_H
+#ifndef S21_GREP_H_
+#define S21_GREP_H_
 
+#include <ctype.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <regex.h>
-#include <dirent.h>
 
-// Structure definitions
+#define MAX_LINE_LENGTH 1024
+#define MAX_PATTERN_LENGTH 256
+#define INITIAL_PATTERN_CAPACITY 10
+
 typedef struct {
-    char **files;
-    int num_files;
-    char **patterns;
-    int num_patterns;
-    int ignore_case;
-    int invert_match;
-    int show_count_lines_only;
-    int show_files_name_only;
-    int show_lines_num;
-    int show_no_files_name;
-    int silent_mode;
-    int show_matching_only;
-    int has_empty_pattern;
-    int regexp_cflags;
-} s21_grep_settings;
+  char **pattern;
+  int pattern_count;
+  int show_filename;      // Флаг -h:
+  int only_matches;       // Флаг -o:
+  int invert_match;       // Флаг -v:
+  int count_only;         // Флаг -c:
+  int list_files;         // Флаг -l:
+  int show_line_numbers;  // Флаг -n:
+  int ignore_case;        // Флаг -i:
+  int silent;             // Флаг -s:
+} GrepOptions;
 
-// Function prototypes
-void s21_push_to_string_array(char ***array, char *str, int *size);
-char *s21_pull_from_string_array(char ***array, int *size);
-void *s21_calloc(size_t count, size_t size);
-void s21_grep_destroy_settings_files(s21_grep_settings *settings);
-void s21_grep_destroy_settings_patterns(s21_grep_settings *settings);
-void s21_grep_destroy_settings(s21_grep_settings *settings);
-void s21_grep_print_instructions_and_exit();
-void s21_grep_print_error(char *str);
-s21_grep_settings s21_grep_get_settings(int argc, char *argv[]);
-void s21_grep_print_settings(s21_grep_settings settings);
-void s21_grep_parse_ffiles(s21_grep_settings *settings, char *filename);
+void s21_print_only_matches(const char *line, const GrepOptions *options);
+void s21_count_matches(int *total_matches, const char *line,
+                       const GrepOptions *options);
+void s21_grep(const GrepOptions *options, const char *filename);
+void s21_parse_arguments(int argc, char *argv[], GrepOptions *options);
 
-#endif // S21_GREP_H
+#endif  // S21_GREP_H_
