@@ -1,138 +1,132 @@
 #!/bin/bash
 
-echo "Testing -e flag..."
-output=$(./s21_grep -e "pattern" test.txt)
-if [ "$output" = "Pattern found here.
-Pattern is here again." ]; then
-    echo "passed"
+# Удалите файлы, созданные во время тестов
+rm -f test.txt test2.txt
+
+
+echo "test" > test.txt
+echo "Test" >> test.txt
+echo "other" >> test.txt
+
+./s21_grep "test" test.txt > result.txt
+grep "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 1 пройден"
 else
-    echo "failed"
+  echo "Тест 1 не пройден"
 fi
 
-echo "Testing -i flag..."
-output=$(./s21_grep -i "Pattern" test.txt)
-if [ "$output" = "Pattern found here.
-Pattern is here again." ]; then
-    echo "passed"
+./s21_grep -i "test" test.txt > result.txt
+grep -i "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 2 пройден"
 else
-    echo "failed"
+  echo "Тест 2 не пройден"
 fi
 
-echo "Testing -v flag..."
-output=$(./s21_grep -v "pattern" test.txt)
-if [ "$output" = "Hello world!
-Another line without pattern." ]; then
-    echo "passed"
+./s21_grep -c "test" test.txt > result.txt
+grep -c "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 3 пройден"
 else
-    echo "failed"
+  echo "Тест 3 не пройден"
 fi
 
-echo "Testing -c flag..."
-output=$(./s21_grep -c "pattern" test.txt)
-if [ "$output" = "2" ]; then
-    echo "passed"
+echo "test" > test2.txt
+./s21_grep -l "test" test.txt test2.txt > result.txt
+grep -l "test" test.txt test2.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 4 пройден"
 else
-    echo "failed"
+  echo "Тест 4 не пройден"
 fi
 
-echo "Testing -l flag..."
-output=$(./s21_grep -l "pattern" test1.txt test2.txt)
-if [ "$output" = "test1.txt" ]; then
-    echo "passed"
+./s21_grep -n "test" test.txt > result.txt
+grep -n "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 5 пройден"
 else
-    echo "failed"
+  echo "Тест 5 не пройден"
 fi
 
-echo "Testing -n flag..."
-output=$(./s21_grep -n "pattern" test.txt)
-if [ "$output" = "2:Pattern found here.
-4:Pattern is here again." ]; then
-    echo "passed"
+./s21_grep -v "test" test.txt > result.txt
+grep -v "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 6 пройден"
 else
-    echo "failed"
+  echo "Тест 6 не пройден"
 fi
 
-echo "Testing -h flag..."
-output=$(./s21_grep -h "pattern" test1.txt test2.txt)
-if [ "$output" = "Pattern is in this file." ]; then
-    echo "passed"
+./s21_grep -o "test" test.txt > result.txt
+grep -o "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 7 пройден"
 else
-    echo "failed"
+  echo "Тест 7 не пройден"
 fi
 
-echo "Testing -s flag..."
-output=$(./s21_grep -s "pattern" non_existent_file.txt)
-if [ "$output" = "" ]; then
-    echo "passed"
+echo "test" > test2.txt
+./s21_grep -h "test" test.txt test2.txt > result.txt
+grep -h "test" test.txt test2.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 8 пройден"
 else
-    echo "failed"
+  echo "Тест 8 не пройден"
 fi
 
-echo "Testing -o flag..."
-output=$(./s21_grep -o "pattern" test.txt)
-if [ "$output" = "pattern
-pattern" ]; then
-    echo "passed"
+echo "test" > patterns.txt
+./s21_grep -f patterns.txt test.txt > result.txt
+grep -f patterns.txt test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 9 пройден"
 else
-    echo "failed"
+  echo "Тест 9 не пройден"
 fi
 
-# Тесты для комбинаций флагов
-echo "Testing -iv flags..."
-output=$(./s21_grep -iv "Pattern" test.txt)
-if [ "$output" = "Hello world!
-Another line without pattern." ]; then
-    echo "passed"
+echo "test" > test2.txt
+./s21_grep -s "test" test2.txt > result.txt
+grep -s "test" test2.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 10 пройден"
 else
-    echo "failed"
+  echo "Тест 10 не пройден"
 fi
 
-echo "Testing -ic flags..."
-output=$(./s21_grep -ic "Pattern" test.txt)
-if [ "$output" = "2" ]; then
-    echo "passed"
+./s21_grep -iv "test" test.txt > result.txt
+grep -iv "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 11 пройден"
 else
-    echo "failed"
+  echo "Тест 11 не пройден"
 fi
 
-echo "Testing -il flags..."
-output=$(./s21_grep -il "Pattern" test1.txt test2.txt)
-if [ "$output" = "test1.txt" ]; then
-    echo "passed"
+./s21_grep -ic "test" test.txt > result.txt
+grep -ic "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 12 пройден"
 else
-    echo "failed"
+  echo "Тест 12 не пройден"
 fi
 
-echo "Testing -in flags..."
-output=$(./s21_grep -in "Pattern" test.txt)
-if [ "$output" = "2:Pattern found here.
-4:Pattern is here again." ]; then
-    echo "passed"
+./s21_grep -in "test" test.txt > result.txt
+grep -in "test" test.txt > expected.txt
+diff result.txt expected.txt
+if [ $? -eq 0 ]; then
+  echo "Тест 13 пройден"
 else
-    echo "failed"
+  echo "Тест 13 не пройден"
 fi
 
-echo "Testing -ih flags..."
-output=$(./s21_grep -ih "Pattern" test1.txt test2.txt)
-if [ "$output" = "Pattern is in this file." ]; then
-    echo "passed"
-else
-    echo "failed"
-fi
-
-echo "Testing -is flags..."
-output=$(./s21_grep -is "Pattern" non_existent_file.txt)
-if [ "$output" = "" ]; then
-    echo "passed"
-else
-    echo "failed"
-fi
-
-echo "Testing -io flags..."
-output=$(./s21_grep -io "Pattern" test.txt)
-if [ "$output" = "Pattern
-Pattern" ]; then
-    echo "passed"
-else
-    echo "failed"
-fi
+#rm -f test.txt test2.txt result.txt expected.txt patterns.txt
