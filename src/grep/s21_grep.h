@@ -10,6 +10,7 @@
 #define MAX_LINE_LENGTH 1024
 #define MAX_PATTERN_LENGTH 256
 #define INITIAL_PATTERN_CAPACITY 10
+#define MAX_FILES 100
 
 typedef struct {
   char **pattern;
@@ -30,4 +31,15 @@ void s21_count_matches(int *total_matches, const char *line,
 void s21_grep(const GrepOptions *options, const char *filename);
 void s21_parse_arguments(int argc, char *argv[], GrepOptions *options);
 
+static void s21_parse_single_flag(const char *flag, GrepOptions *options);
+static void s21_parse_flags(int *pos, int argc, char *argv[],
+                            GrepOptions *options, int *pat_cap);
+static void s21_parse_minus_e(int *pos, int argc, char *argv[],
+                              GrepOptions *options, int *pat_cap);
+static void s21_parse_minus_f(int *pos, int argc, char *argv[],
+                              GrepOptions *options, int *pat_cap);
+static void s21_parse_flags(int *pos, int argc, char *argv[],
+                            GrepOptions *options, int *pat_cap);
+
 #endif  // S21_GREP_H_
+
