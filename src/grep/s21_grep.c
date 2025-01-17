@@ -44,7 +44,6 @@ void s21_grep(const GrepOptions *options, const char *filename) {
     line_number++;
     int match_found = 0;
 
-
     for (int i = 0; i < options->pattern_count; i++) {
       regex_t regex;
       regcomp(&regex, options->pattern[i],
@@ -59,17 +58,16 @@ void s21_grep(const GrepOptions *options, const char *filename) {
 
     if ((match_found && !options->invert_match) ||
         (!match_found && options->invert_match)) {
-      file_has_match = 1; //
+      file_has_match = 1;
 
       if (options->list_files) {
         printf("%s\n", filename);
         fclose(file);
         return;
         break;
-
       }
 
-      if (options->count_only ) {
+      if (options->count_only) {
         s21_count_matches(&total_matches, line, options);
       } else {
         if (options->show_filename) {
@@ -89,15 +87,14 @@ void s21_grep(const GrepOptions *options, const char *filename) {
     }
   }
   if (options->count_only && !options->list_files) {
-        printf("%d\n", total_matches);
+    printf("%d\n", total_matches);
   }
 
   if (!file_has_match && !options->silent && !options->list_files) {
-        printf("No matches found in %s\n", filename);
+    printf("No matches found in %s\n", filename);
   }
 
-    fclose(file);
-
+  fclose(file);
 }
 
 void s21_init_options(GrepOptions *options) {
@@ -116,106 +113,130 @@ void s21_init_options(GrepOptions *options) {
   }
 }
 
-void s21_handle_flags(GrepOptions *options, char *flag) {
-  flag++;
-  for (int i = 0; flag[i]; i++) {
-    switch (flag[i]) {
-      case 'h':
-        options->show_filename = 1;
-        break;
-      case 'o':
-        options->only_matches = 1;
-        break;
-      case 'v':
-        options->invert_match = 1;
-        break;
-      case 'c':
-        options->count_only = 1;
-        break;
-      case 'l':
-        options->list_files = 1;
-        //options->show_filename = 0;
-
-        break;
-      case 'n':
-        options->show_line_numbers = 1;
-        break;
-      case 'i':
-        options->ignore_case = 1;
-        break;
-      case 's':
-        options->silent = 1;
-        break;
-      //case 'f':
-        //break;
-      default:
-        fprintf(stderr, "Неизвестный флаг: -%c\n", flag[i]);
-        break;
-    }
-  }
-}
-
-
-void s21_add_pattern(GrepOptions *options, char *pattern, int *pattern_capacity) {
+void s21_add_pattern(GrepOptions *options, char *pattern,
+                     int *pattern_capacity) {
   if (options->pattern_count >= *pattern_capacity) {
     *pattern_capacity *= 2;
-    options->pattern = realloc(options->pattern, *pattern_capacity * sizeof(char *));
+    options->pattern =
+        realloc(options->pattern, *pattern_capacity * sizeof(char *));
     if (!options->pattern) {
       exit(EXIT_FAILURE);
     }
   }
-  options->pattern[options->pattern_count] = malloc((strlen(pattern) + 1) * sizeof(char));
+  options->pattern[options->pattern_count] =
+      malloc((strlen(pattern) + 1) * sizeof(char));
   if (!options->pattern[options->pattern_count]) {
     exit(EXIT_FAILURE);
   }
   strcpy(options->pattern[options->pattern_count++], pattern);
 }
 
-
+static void s21_parse_flags(int *pos, int argc, char *argv[],
+                            GrepOptions *options, int *pat_cap) {
+  while (*pos < argc && argv[*pos][0] == '-') {
+    if (strcmp(argv[*pos], "-e") == 0) {
+      s21_parse_minus_e(pos, argc, argv, options, pat_cap);
+    } else if (strcmp(argv[*pos], "-f") == 0) {
+      s21_parse_minus_f(pos, argc, argv, options, pat_cap);
+    } else {
+      s21_parse_single_flag(argv[*pos], options);
+    }
+    (*pos)++;
+  }
+}
 
 void s21_parse_arguments(int argc, char *argv[], GrepOptions *options) {
   s21_init_options(options);
   int pattern_capacity = INITIAL_PATTERN_CAPACITY;
+  int pos = 1;
 
-  for (int i = 1; i < argc; i++) {
-    if (argv[i][0] == '-') {
-      // Обработка флагов
-      if (strcmp(argv[i], "-e") == 0 && i + 1 < argc) {
-        i++;
-        s21_add_pattern(options, argv[i], &pattern_capacity);
-      } else {
-        s21_handle_flags(options, argv[i]);
-      }
-    } else {
-      s21_add_pattern(options, argv[i], &pattern_capacity);
+  s21_parse_flags(&pos, argc, argv, options, &pattern_capacity);
+
+  if (options->pattern_count == 0 && pos < argc) {
+    s21_add_pattern(options, argv[pos++], &pattern_capacity);
+  }
+
+  if (options->pattern_count == 0) {
+    fprintf(stderr, "Error: pattern not found\n");
+    exit(EXIT_FAILURE);
+  }
+
+  if (pos >= argc) {
+    fprintf(stderr, "Error: files not found\n");
+    exit(EXIT_FAILURE);
+  }
+
+  for (; pos < argc; pos++) {
+    s21_grep(options, argv[pos]);
+  }
+}
+
+static void s21_parse_single_flag(const char *flag, GrepOptions *options) {
+  for (int i = 1; flag[i] != '\0'; i++) {
+    switch (flag[i]) {
+      case 'i':
+        options->ignore_case = 1;
+        break;
+      case 'v':
+        options->invert_match = 1;
+        break;
+      case 'n':
+        options->show_line_numbers = 1;
+        break;
+      case 'h':
+        options->show_filename = 0;
+        break;
+      case 's':
+        options->silent = 1;
+        break;
+      case 'l':
+        options->list_files = 1;
+        break;
+      case 'c':
+        options->count_only = 1;
+        break;
+      case 'o':
+        options->only_matches = 1;
+        break;
+      default:
+        fprintf(stderr, "Error: cant resolve flag -%c\n", flag[i]);
+        break;
     }
   }
 }
 
+static void s21_parse_minus_e(int *pos, int argc, char *argv[],
+                              GrepOptions *options, int *pat_cap) {
+  if (*pos + 1 >= argc) {
+    fprintf(stderr, "Error: -e requires template\n");
+    exit(EXIT_FAILURE);
+  }
+  (*pos)++;
+  s21_add_pattern(options, argv[*pos], pat_cap);
+}
 
-
+static void s21_parse_minus_f(int *pos, int argc, char *argv[],
+                              GrepOptions *options, int *pat_cap) {
+  if (*pos + 1 >= argc) {
+    fprintf(stderr, "Error: -f file is missing\n");
+    exit(EXIT_FAILURE);
+  }
+  (*pos)++;
+  FILE *pf = fopen(argv[*pos], "r");
+  if (!pf) {
+    perror(argv[*pos]);
+    exit(EXIT_FAILURE);
+  }
+  char line[1024];
+  while (fgets(line, sizeof(line), pf)) {
+    line[strcspn(line, "\n")] = '\0';
+    s21_add_pattern(options, line, pat_cap);
+  }
+  fclose(pf);
+}
 
 int main(int argc, char *argv[]) {
-    GrepOptions options;
-    s21_parse_arguments(argc, argv, &options);
-
-    if (options.pattern_count == 0 || argc <= options.pattern_count) {
-        fprintf(stderr, "Использование: %s [опции] <шаблон> [<шаблон>...] <файл>\n", argv[0]);
-        return EXIT_FAILURE;
-    }
-
-    // Начиная с индекса, следующего за последним шаблоном
-    int start_index = options.pattern_count + 1;
-
-    for (int i = start_index; i < argc; i++) {
-        s21_grep(&options, argv[i]);
-    }
-
-    for (int i = 0; i < options.pattern_count; i++) {
-        free(options.pattern[i]);
-    }
-
-    free(options.pattern);
-
-    return EXIT_SUCCESS;
+  GrepOptions options;
+  s21_parse_arguments(argc, argv, &options);
+  return 0;
 }
