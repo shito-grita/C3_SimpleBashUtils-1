@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror
+CFLAGS = -Wall -Wextra -Werror -std=c11
 SRC = s21_grep.c
 TARGET = s21_grep
 all: $(TARGET)
